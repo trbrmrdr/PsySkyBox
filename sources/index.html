@@ -1,20 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sky box</title>
     <style>
-        html,body {overflow: hidden;width: 100%;height: 100%;margin: 0;padding: 0;}
-        #renderCanvas {width: 100%;height: 100%;touch-action: none;}
+        html,
+        body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        #fps {
+            position: absolute;
+            background-color: black;
+            border: 2px solid red;
+            text-align: center;
+            font-size: 16px;
+            color: white;
+            bottom: 15px;
+            right: 10px;
+            width: 60px;
+            height: 20px;
+        }
     </style>
 </head>
+
 <body>
     <canvas id="renderCanvas" touch-action="none"></canvas>
+    <div id="fps"></div>
     <script src="dist/app.js"></script>
     <!-- <script src="dist/main.js"></script> -->
 
 
     <!-- <script type="text/javaScript" src="./libs/dat.gui/build/dat.gui.min.js"></script> -->
 </body>
+
 </html>
