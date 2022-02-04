@@ -1,21 +1,25 @@
 {
-    "compileOnSave": true,
-    "compilerOptions": {
-      "target": "es5",              
-      "module": "CommonJS",  
-      "sourceMap": true,    
-      "outDir": "./sources/dist", 
-      "types": [
-        "babylonjs",
-        // "babylonjs-gui",
-        // "babylonjs-materials"
-      ]                     
-    },
-    "include": [
-      "sources/src/**/*"
-    ],
-    "exclude": [
-      "node_modules",
-      "**/*.spec.js"
+  "compileOnSave": true,
+  "compilerOptions": {
+    "target": "ES2015",
+    "module": "CommonJS",
+    "sourceMap": true,
+    "outDir": "./sources/dist",
+    "typeRoots": [],
+    "types": [
+      "babylonjs",
+      "load-text-file",
+      "fs",
+      // "node"
+      // "babylonjs-gui",
+      // "babylonjs-materials"
     ]
-  }
+  },
+  "include": [
+    "sources/src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/*.spec.js"
+  ]
+}

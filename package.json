@@ -7,7 +7,9 @@
     "babylonjs": "^5.0.0-beta.5",
     "babylonjs-gui": "^5.0.0-beta.5",
     "babylonjs-loaders": "^5.0.0-beta.5",
-    "dat.gui": "^0.7.7"
+    "dat.gui": "^0.7.7",
+    "firebase-tools": "^10.1.4",
+    "save-dev": "0.0.1-security"
   },
   "devDependencies": {
     "browser-sync": "^2.27.7",

@@ -12,19 +12,19 @@ const webpackStream = require('webpack-stream');
 const webpackConfig = require('./webpack.config.js');
 
 
-gulp.task('scripts',  function () {
+gulp.task('scripts', function () {
 
     console.log(' task -> scripts')
 
-    return  gulp.src('./sources/src/app.js')
-    .pipe(webpackStream(webpackConfig), webpack)
-    .pipe(gulp.dest('./sources/dist/'));
+    // return  gulp.src('./sources/src/app.js')
+    // .pipe(webpackStream(webpackConfig), webpack)
+    // .pipe(gulp.dest('./sources/dist/'));
 
     return gulp.src([
         //   './lib/*.js'// путь к папке со скриптами
         // "./js/settings.js",
 
-        "./sources/src/app.js"
+        "./sources/src/app.js",
 
     ])
         // .pipe(babel({
@@ -35,7 +35,7 @@ gulp.task('scripts',  function () {
         // .pipe(javascriptObfuscator())
         // .pipe(uglify())
 
-        .pipe(concat('main.js')) // в какой файл объединить
+        .pipe(concat('app.js')) // в какой файл объединить
         .pipe(gulp.dest('./sources/dist/'))
 
     //.pipe(browserSync.reload())
@@ -74,32 +74,17 @@ gulp.task('default', gulp.series('server'));
 
 
 
-
-
-
 gulp.task('release_src', function () {
 
     return gulp.src([
-        "./public/lib/dragonBones.js",
-        "./public/lib/listener.js",
-
-        "./public/lib/Const.js",
-        "./public/lib/Assets.js",
-
-        "./public/lib/Stars.js",
-        "./public/lib/ClipMask.js",
-        "./public/lib/Room.js",
-        "./public/lib/Tablo.js",
-        "./public/lib/Bang.js",
-
-        "./public/lib/main.js"
+        "./sources/src/app.js",
     ])
 
-        // .pipe(javascriptObfuscator())
-        // .pipe(uglify())
+        .pipe(javascriptObfuscator())
+        .pipe(uglify())
 
-        .pipe(concat('main.js'))
-        .pipe(gulp.dest('./public/dist/'))
+        .pipe(concat('app.js'))
+        .pipe(gulp.dest('./sources/dist/'))
 
 });
 
