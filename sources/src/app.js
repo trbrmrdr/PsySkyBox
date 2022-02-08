@@ -1,8 +1,25 @@
 
-
 window.onload = mainScene;
 
 var verts_shader, frag_shader;
+
+var Config = {
+    val_x: 50,
+    val_y: 59,
+    speed: 8,
+    cloudy: 0.5,
+
+    I: 10.,
+    SI: 5.,
+
+    steps: 8,
+    stepss: 8,
+
+    sky_color: [5,64,172],
+
+    extend_sun: true,
+};
+
 
 function initBabylon() {
     var canvas = document.getElementById('renderCanvas');
@@ -17,7 +34,7 @@ function initBabylon() {
         camera.setTarget(BABYLON.Vector3.Zero());
         // camera.attachControl(canvas, true);
 
-        
+
         var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.intensity = 0.1;
 
@@ -35,31 +52,47 @@ function initBabylon() {
             });
 
 
-        var mainTexture = new BABYLON.Texture("http://i.imgur.com/kUJBvin.png", scene, true, false, 12);
+        var mainTexture = new BABYLON.Texture("/src/noise.png", scene, true, false, 12);
 
-        //https://www.shadertoy.com/view/ltlSWB
+
         shaderMaterial.setTexture("iChannel0", mainTexture);
         shaderMaterial.setFloat("time", 0);
         shaderMaterial.setFloat("offset", 10);
-        shaderMaterial.setFloat("sunx", 2.0);
-        shaderMaterial.setFloat("suny", 0.9);
+
+        shaderMaterial.setVector2("iResolution", new BABYLON.Vector2(window.innerWidth, window.innerHeight));
         shaderMaterial.backFaceCulling = false;
 
 
         // var Dome = BABYLON.Mesh.CreateSphere('Dome', 50, 50, scene);
         // Dome.material = shaderMaterial;
 
-        var plane = BABYLON.MeshBuilder.CreatePlane("plane", {width:window.innerWidth, height:window.innerHeight}, scene);    
+        var plane = BABYLON.MeshBuilder.CreatePlane("plane", { width: window.innerWidth, height: window.innerHeight }, scene);
         plane.material = shaderMaterial
 
         var time = 0;
         scene.registerBeforeRender(function () {
             var shaderMaterial = scene.getMaterialByName("shader");
-            shaderMaterial.setFloat("time", time);
 
-            //Animate Move Sun 
-            shaderMaterial.setFloat("suny", Math.sin(time / 3));
-            shaderMaterial.setFloat("sunx", Math.sin(time / 3));
+
+            shaderMaterial.setFloat("time", time * Config.speed);
+            shaderMaterial.setFloat("sunx", Config.val_x / 100);
+            shaderMaterial.setFloat("suny", Config.val_y / 100);
+            shaderMaterial.setFloat("cloudy", Config.cloudy);
+
+
+            shaderMaterial.setInt("extend_sun", Config.extend_sun ? 1 : 0);
+            shaderMaterial.setFloat("I", Config.I);
+            shaderMaterial.setFloat("SI", Config.SI);
+
+            shaderMaterial.setInt("steps", Config.steps);
+            shaderMaterial.setInt("stepss", Config.stepss);
+            shaderMaterial.setVector3("bR", new BABYLON.Vector3(
+                Config.sky_color[0] / 255 * 0.0001,
+                Config.sky_color[1] / 255* 0.0001,
+                Config.sky_color[2] / 255* 0.0001,
+            ));
+
+            
             time += 0.008;
         });
 
@@ -98,12 +131,22 @@ async function mainScene() {
     //https://github.com/dataarts/dat.gui/blob/master/API.md
     const gui = new dat.GUI()
 
-    var objVal = {
-        values_1: 89,
-        checker: false,
-    };
-    gui.add(objVal, 'values_1', 0, 100);
-    gui.add(objVal, 'checker');
+
+    gui.add(Config, 'val_x', 0, 100);
+    gui.add(Config, 'val_y', 0, 100);
+    gui.add(Config, 'speed', 5, 30);
+    gui.add(Config, 'cloudy', 0, 1.0, 0.1)
+
+    gui.add(Config, 'steps', 1, 100)
+    gui.add(Config, 'stepss', 1, 100)
+
+    gui.add(Config, 'extend_sun');
+
+    gui.add(Config, 'I', 1, 10, 0.1)
+    gui.add(Config, 'SI', 1, 10, 0.1)
+
+    gui.addColor(Config, 'sky_color');
+
 
     var palette = {
         color1: '#FF0000', // CSS string
@@ -111,5 +154,5 @@ async function mainScene() {
         color3: [0, 128, 255, 0.3], // RGB with alpha
         color4: { h: 350, s: 0.9, v: 0.3 } // Hue, saturation, value
     };
-    gui.addColor(palette, 'color3');
+    // gui.addColor(palette, 'color3');
 }

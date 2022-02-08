@@ -1,14 +1,11 @@
 precision highp float;
 
-             // Attributes
 attribute vec3 position;
 attribute vec3 normal;
 attribute vec2 uv;
-
-             // Uniforms
+             
 uniform mat4 worldViewProjection;
-
-             // Varying
+             
 varying vec4 vPosition;
 varying vec3 vNormal;
 varying vec2 vUV;
@@ -20,7 +17,7 @@ void main() {
     vNormal = normal;
 
     vUV = uv;
-                  // vUV.y =1.-vUV.y;     // flip uv screen ;
+                  // vUV.y =1.-vUV.y;     // flip uv
     gl_Position = worldViewProjection * p;
 
 }

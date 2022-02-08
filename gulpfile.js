@@ -62,7 +62,7 @@ gulp.task('server', gulp.series('scripts', function (done) {
 
 
     gulp.watch("./sources/lib/*.js").on('change', gulp.series('js_watch'));
-    gulp.watch("./sources/src/*.js").on('change', gulp.series('js_watch'));
+    gulp.watch("./sources/src/*.*").on('change', gulp.series('js_watch'));
     gulp.watch("./sources/*").on('change', gulp.series('js_watch'));
     gulp.watch("*.js").on('change', browserSync.reload);
 
