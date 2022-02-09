@@ -1,151 +1,137 @@
 
-window.onload = mainScene;
+window.onload = async function () {
 
-var verts_shader, frag_shader;
+    var verts_shader, frag_shader;
 
-var Config = {
-    val_x: 50,
-    val_y: 59,
-    speed: 8,
-    cloudy: 0.5,
+    var Config = {
 
-    I: 10.,
-    SI: 5.,
-
-    steps: 8,
-    stepss: 8,
-
-    sky_color: [5,64,172],
-
-    extend_sun: true,
-};
+        valX: 50,
+        valY: 50,
+        hasDynamicDay: false,
+        tday: 60,
+        d_startDay: 1,
 
 
-function initBabylon() {
-    var canvas = document.getElementById('renderCanvas');
 
-    var engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+        hasScattering: true,
+        phaseR_c: .0596831,
+        phaseM_c: .1193662,
+        phaseS_c: .1193662,
 
-    var createScene = function () {
-        // This creates a basic Babylon Scene object (non-mesh)
-        var scene = new BABYLON.Scene(engine);
+        R0: 6360e3,
+        dR: 20e3,
+        bM: 21,
 
-        var camera = new BABYLON.ArcRotateCamera("camera1", Math.PI, Math.PI / 2.0, 20, new BABYLON.Vector3(0, 0, -1000), scene);
-        camera.setTarget(BABYLON.Vector3.Zero());
-        // camera.attachControl(canvas, true);
+        speed: 8,
+        cloudy: 0.25,
 
+        I: 10.,
+        SI: 5.,
 
-        var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
-        light.intensity = 0.1;
+        steps: 8,
+        stepss: 8,
 
-        BABYLON.Effect.ShadersStore["customVertexShader"] = verts_shader;
-        BABYLON.Effect.ShadersStore["customFragmentShader"] = frag_shader;
+        extend_sun: true,
 
-        // Compile
-        var shaderMaterial = new BABYLON.ShaderMaterial("shader", scene, {
-            vertex: "custom",
-            fragment: "custom",
+        sky_color: new BABYLON.Vector3(5.8e-6, 13.5e-6, 33.1e-6),
+        hasAlien: false,
+        normal: function () {
+            Config.sky_color = new BABYLON.Vector3(5.8e-6, 13.5e-6, 33.1e-6);
         },
-            {
-                attributes: ["position", "normal", "uv"],
-                uniforms: ["world", "worldView", "worldViewProjection", "view", "projection"]
-            });
+        green: function () {
+            Config.sky_color = new BABYLON.Vector3(63.5e-6, 13.1e-6, 50.8e-6);
+        },
+        yeellow: function () {
+            Config.sky_color = new BABYLON.Vector3(13.5e-6, 23.1e-6, 115.8e-6);
+        },
+        red_purple: function () {
+            Config.sky_color = new BABYLON.Vector3(3.5e-6, 333.1e-6, 235.8e-6);
+        },
 
-
-        var mainTexture = new BABYLON.Texture("/src/noise.png", scene, true, false, 12);
-
-
-        shaderMaterial.setTexture("iChannel0", mainTexture);
-        shaderMaterial.setFloat("time", 0);
-        shaderMaterial.setFloat("offset", 10);
-
-        shaderMaterial.setVector2("iResolution", new BABYLON.Vector2(window.innerWidth, window.innerHeight));
-        shaderMaterial.backFaceCulling = false;
-
-
-        // var Dome = BABYLON.Mesh.CreateSphere('Dome', 50, 50, scene);
-        // Dome.material = shaderMaterial;
-
-        var plane = BABYLON.MeshBuilder.CreatePlane("plane", { width: window.innerWidth, height: window.innerHeight }, scene);
-        plane.material = shaderMaterial
-
-        var time = 0;
-        scene.registerBeforeRender(function () {
-            var shaderMaterial = scene.getMaterialByName("shader");
-
-
-            shaderMaterial.setFloat("time", time * Config.speed);
-            shaderMaterial.setFloat("sunx", Config.val_x / 100);
-            shaderMaterial.setFloat("suny", Config.val_y / 100);
-            shaderMaterial.setFloat("cloudy", Config.cloudy);
-
-
-            shaderMaterial.setInt("extend_sun", Config.extend_sun ? 1 : 0);
-            shaderMaterial.setFloat("I", Config.I);
-            shaderMaterial.setFloat("SI", Config.SI);
-
-            shaderMaterial.setInt("steps", Config.steps);
-            shaderMaterial.setInt("stepss", Config.stepss);
-            shaderMaterial.setVector3("bR", new BABYLON.Vector3(
-                Config.sky_color[0] / 255 * 0.0001,
-                Config.sky_color[1] / 255* 0.0001,
-                Config.sky_color[2] / 255* 0.0001,
-            ));
-
-            
-            time += 0.008;
-        });
-
-        return scene;
-    }
-
-    var scene = createScene();
-
-    var divFps = document.getElementById("fps");
-
-    engine.runRenderLoop(function () {
-        scene.render();
-
-        divFps.innerHTML = engine.getFps().toFixed() + " fps";
-    });
-    // the canvas/window resize event handler
-
-    window.addEventListener('resize', function () {
-        engine.resize();
-    });
-}
-
-async function mainScene() {
-
-    verts_shader = await fetch('/src/shader.vert');
-    verts_shader = await verts_shader.text()
-
-    frag_shader = await fetch('/src/shader.frag');
-    frag_shader = await frag_shader.text()
-
-
-    initBabylon()
+        t_val_1:0.4,
+        t_val_2:1.0
+    };
 
     // const dat = require('dat.gui');
     //https://jsfiddle.net/ikatyang/182ztwao/
     //https://github.com/dataarts/dat.gui/blob/master/API.md
     const gui = new dat.GUI()
 
+    let folder = gui.addFolder("День");
+    folder.add(Config, 'hasDynamicDay').name('динамический?').onChange(function (newVal) {
+        if (newVal == true) {
+            timestamp = Date.now()
+            // elapsed = Date.now() - timestamp;
+        }
+    });
+    folder.add(Config, 'tday', 0, 1000).name('длинна дня(с.)');
+    folder.add(Config, 'd_startDay', 0, 100).name('dStartDay%');
+    folder.open();
 
-    gui.add(Config, 'val_x', 0, 100);
-    gui.add(Config, 'val_y', 0, 100);
-    gui.add(Config, 'speed', 5, 30);
+    folder = gui.addFolder("Рассеивание");
+    folder.add(Config, 'hasScattering').onChange(function (newValue) {
+        if (newValue) {
+            Config.R0 = 6360e3;
+            Config.dR = 20e3;
+            Config.phaseR_c = .0596831;
+            Config.phaseM_c = .1193662;
+            Config.phaseS_c = .1193662;
+            Config.extend_sun = true
+            Config.I = 10.;
+            Config.SI = 5.;
+        } else {
+            Config.R0 = 375668;
+            Config.dR = 7513;
+            Config.phaseR_c = .8;
+            Config.phaseM_c = .0;
+            Config.phaseS_c = .24;
+            Config.extend_sun = false
+            Config.I = 3.;
+            Config.SI = 2.1;
+        }
+        gui.updateDisplay()
+    });
+    folder.add(Config, 'R0', 0, 10000e3);
+    folder.add(Config, 'dR', 0, 200e3);
+    folder.add(Config, 'bM', 0, 100);
+
+    folder.add(Config, 'phaseR_c', 0, 2, 0.01);
+    folder.add(Config, 'phaseM_c', 0, 2, 0.01);
+    folder.add(Config, 'phaseS_c', 0, 4, 0.01);
+
+    folder.open();
+
+    gui.add(Config, 'speed', 5, 30).name('скорость тучь');
     gui.add(Config, 'cloudy', 0, 1.0, 0.1)
 
-    gui.add(Config, 'steps', 1, 100)
-    gui.add(Config, 'stepss', 1, 100)
+    // gui.add(Config, 'steps', 1, 100)
+    // gui.add(Config, 'stepss', 1, 100)
 
-    gui.add(Config, 'extend_sun');
+    // gui.add(Config, 'extend_sun');
 
-    gui.add(Config, 'I', 1, 10, 0.1)
-    gui.add(Config, 'SI', 1, 10, 0.1)
+    // gui.add(Config, 'I', 0, 20, 0.1)
+    // gui.add(Config, 'SI', 0, 20, 0.1)
 
-    gui.addColor(Config, 'sky_color');
+    // folder = gui.addFolder('Color');
+    // gui.addColor(Config, 'sky_color');
+    // folder.add(Config,'normal');
+    // folder.add(Config,'green');
+    // folder.add(Config,'yeellow');
+    gui.add(Config, 'hasAlien').name('Alien_atmosphere').onChange(function (newValue) {
+        if (newValue) {
+            Config.sky_color = new BABYLON.Vector3(3.5e-6, 333.1e-6, 235.8e-6);
+        } else {
+            Config.sky_color = new BABYLON.Vector3(5.8e-6, 13.5e-6, 33.1e-6);
+        }
+    });
+
+
+    // folder = gui.addFolder('Debug');
+    // folder.add(Config, 'valX', 1, 100);
+    // folder.add(Config, 'valY', 1, 100);
+    // folder.add(Config,'t_val_1',0,1.0,0.05);
+    // folder.add(Config,'t_val_2',0.0,1.0,0.05);
+    // folder.open();
 
 
     var palette = {
@@ -155,4 +141,138 @@ async function mainScene() {
         color4: { h: 350, s: 0.9, v: 0.3 } // Hue, saturation, value
     };
     // gui.addColor(palette, 'color3');
+
+
+    function initBabylon() {
+        var canvas = document.getElementById('renderCanvas');
+
+        var engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+
+        var createScene = function () {
+            // This creates a basic Babylon Scene object (non-mesh)
+            var scene = new BABYLON.Scene(engine);
+
+            var camera = new BABYLON.ArcRotateCamera("camera1", Math.PI, Math.PI / 2.0, 20, new BABYLON.Vector3(0, 0, -1000), scene);
+            camera.setTarget(BABYLON.Vector3.Zero());
+            // camera.attachControl(canvas, true);
+
+
+            var light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
+            light.intensity = 0.1;
+
+            BABYLON.Effect.ShadersStore["customVertexShader"] = verts_shader;
+            BABYLON.Effect.ShadersStore["customFragmentShader"] = frag_shader;
+
+            // Compile
+            var shaderMaterial = new BABYLON.ShaderMaterial("shader", scene, {
+                vertex: "custom",
+                fragment: "custom",
+            },
+                {
+                    attributes: ["position", "normal", "uv"],
+                    uniforms: ["world", "worldView", "worldViewProjection", "view", "projection"]
+                });
+
+
+            var mainTexture = new BABYLON.Texture("/src/noise.png", scene, true, false, 12);
+
+
+            shaderMaterial.setTexture("iChannel0", mainTexture);
+            shaderMaterial.setFloat("time", 0);
+            shaderMaterial.setFloat("offset", 10);
+
+            shaderMaterial.setVector2("iResolution", new BABYLON.Vector2(window.innerWidth, window.innerHeight));
+            shaderMaterial.backFaceCulling = false;
+
+
+            // var Dome = BABYLON.Mesh.CreateSphere('Dome', 50, 50, scene);
+            // Dome.material = shaderMaterial;
+
+            var plane = BABYLON.MeshBuilder.CreatePlane("plane", { width: window.innerWidth, height: window.innerHeight }, scene);
+            plane.material = shaderMaterial
+
+            var time = 0, elapsed = 0.0;
+            var timestamp = Date.now();
+            scene.registerBeforeRender(function () {
+
+                //console.log(elapsed)
+                if (Config.hasDynamicDay) {
+                    elapsed = Date.now() - timestamp;
+                }
+                // let grad_sun = Config.tday 360*180/Math.PI
+
+                var shaderMaterial = scene.getMaterialByName("shader");
+
+                shaderMaterial.setFloat("elapsed", elapsed);
+                shaderMaterial.setFloat("tday", Config.tday);
+                shaderMaterial.setFloat("d_startDay", Config.d_startDay);
+
+
+                shaderMaterial.setFloat("phaseR_c", Config.phaseR_c);
+                shaderMaterial.setFloat("phaseM_c", Config.phaseM_c);
+                shaderMaterial.setFloat("phaseS_c", Config.phaseS_c);
+
+                shaderMaterial.setFloat("R0", Config.R0);
+                shaderMaterial.setFloat("Ra", Config.R0 + Config.dR);
+                shaderMaterial.setVector3("C", new BABYLON.Vector3(0, -Config.R0, 0));
+
+                let tmp_bM = Config.bM * 1e-6;
+                shaderMaterial.setVector3("bM", new BABYLON.Vector3(tmp_bM, tmp_bM, tmp_bM));
+
+                // 
+                shaderMaterial.setFloat("iTime", time * Config.speed);
+                shaderMaterial.setFloat("iMouse",new BABYLON.Vector2(Config.valX / 100, Config.valY / 100));
+                shaderMaterial.setFloat("cloudy", Config.cloudy);
+
+                shaderMaterial.setFloat("t_val_1", Config.t_val_1);
+                shaderMaterial.setFloat("t_val_2", Config.t_val_2);
+
+
+                shaderMaterial.setInt("extend_sun", Config.extend_sun ? 1 : 0);
+                shaderMaterial.setFloat("I", Config.I);
+                shaderMaterial.setFloat("SI", Config.SI);
+
+                shaderMaterial.setInt("steps", Config.steps);
+                shaderMaterial.setInt("stepss", Config.stepss);
+
+                // shaderMaterial.setVector3("bR", new BABYLON.Vector3(
+                //     Config.sky_color[0] / 255 * 0.0001,
+                //     Config.sky_color[1] / 255 * 0.0001,
+                //     Config.sky_color[2] / 255 * 0.0001,
+                // ));
+                shaderMaterial.setVector3("bR", Config.sky_color);
+
+
+                time += 0.008;
+            });
+
+            return scene;
+        }
+
+        var scene = createScene();
+
+        var divFps = document.getElementById("fps");
+
+        engine.runRenderLoop(function () {
+            scene.render();
+
+            divFps.innerHTML = engine.getFps().toFixed() + " fps";
+        });
+        // the canvas/window resize event handler
+
+        window.addEventListener('resize', function () {
+            engine.resize();
+        });
+    }
+
+    // async function mainScene() {
+
+    verts_shader = await fetch('/src/shader.vert');
+    verts_shader = await verts_shader.text()
+
+    frag_shader = await fetch('/src/shader.frag');
+    frag_shader = await frag_shader.text()
+
+
+    initBabylon()
 }

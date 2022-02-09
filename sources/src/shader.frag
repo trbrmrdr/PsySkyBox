@@ -10,16 +10,16 @@ varying vec2 vUV;
 uniform vec2 iResolution;
 
 uniform sampler2D iChannel0;
-uniform float sunx;
-uniform float suny;
-uniform float time;
+uniform vec2 iMouse;
+uniform float iTime;
 
+uniform float elapsed;
+uniform float tday;
+uniform float d_startDay;
 
 #define ORIG_CLOUD 1
-#define ENABLE_RAIN 0
 // #define EXTEND_SUN 1
 uniform int extend_sun;
-#define NICE_HACK_SUN 1
 #define SOFT_SUN 0
 
 uniform float cloudy;
@@ -27,16 +27,14 @@ uniform float cloudy;
 #define haze  0.01 * (cloudy*20.)
 
 #define rainmulti 5.0 // makes clouds thicker
-#define rainy (10.0 -rainmulti)
-#define t time
 #define fov tan(radians(60.0))
 #define S(x, y, z) smoothstep(x, y, z)
 #define cameraheight 6e1 //50.
 #define mincloudheight 5e3 //5e3
 #define maxcloudheight 8e3 //8e3
-#define xaxiscloud t*5e2 //t*5e2 +t left -t right *speed
+#define xaxiscloud iTime*5e2 //iTime*5e2 +iTime left -iTime right *speed
 #define yaxiscloud 0. //0.
-#define zaxiscloud t*6e2 //t*6e2 +t away from horizon -t towards horizon *speed
+#define zaxiscloud iTime*6e2 //iTime*6e2 +iTime away from horizon -iTime towards horizon *speed
 #define cloudnoise 2e-4 //2e-4
 
 //Performance
@@ -45,9 +43,16 @@ uniform float cloudy;
 uniform int steps;
 uniform int stepss;
 
-//Environment
-const float R0 = 6360e3; //planet radius //6360e3 actual 6371km
-const float Ra = 6380e3; //atmosphere radius //6380e3 troposphere 8 to 14.5km
+
+
+uniform float phaseR_c;//.0596831
+uniform float phaseM_c;// .1193662
+uniform float phaseS_c;//.1193662
+
+// const float R0 = 6360e3; //planet radius //6360e3 actual 6371km
+// const float Ra = 6380e3; //atmosphere radius //6380e3 troposphere 8 to 14.5km
+uniform float R0;
+uniform float Ra;
 // const float I = 10.; //sun light power, 10.0 is normal
 uniform float I;
 // const float SI = 5.; //sun intensity for sun
@@ -66,23 +71,23 @@ const float s2 = s * s;
 const float Hr = 4e3; //Rayleigh scattering top //8e3
 const float Hm = 1.2e3; //Mie scattering top //1.3e3
 
-vec3 bM = vec3(21e-6); //normal mie // vec3(21e-6)
+// vec3 bM = vec3(21e-6); //normal mie // vec3(21e-6)
 // vec3 bM = vec3(50e-6); //high mie
+uniform vec3 bM;
 
 //Rayleigh scattering (sky color, atmospheric up to 8km)
-// vec3 bR = vec3(5.8e-6, 13.5e-6, 33.1e-6); //normal earth
+//vec3 bR = vec3(5.8e-6, 13.5e-6, 33.1e-6); //normal earth
 //vec3 bR = vec3(5.8e-6, 33.1e-6, 13.5e-6); //purple
 //vec3 bR = vec3( 63.5e-6, 13.1e-6, 50.8e-6 ); //green
-//vec3 bR = vec3( 13.5e-6, 23.1e-6, 115.8e-6 ); //yellow
-//vec3 bR = vec3( 5.5e-6, 15.1e-6, 355.8e-6 ); //yeellow
-//vec3 bR = vec3(3.5e-6, 333.1e-6, 235.8e-6 ); //red-purple
+// vec3 bR = vec3( 13.5e-6, 23.1e-6, 115.8e-6 ); //yellow
+// vec3 bR = vec3( 5.5e-6, 15.1e-6, 355.8e-6 ); //yeellow
+// vec3 bR = vec3(3.5e-6, 333.1e-6, 235.8e-6 ); //red-purple
 
-uniform vec3 bR;
+ uniform vec3 bR;
 
-vec3 C = vec3(0., -R0, 0.); //planet center
+// vec3 C = vec3(0., -R0, 0.); //planet center
+uniform vec3 C;
 vec3 Ds = normalize(vec3(0., 0., -1.)); //sun direction?
-
-float cloudyhigh = 0.05; //if cloud2 defined
 
 #if ORIG_CLOUD == 1
 float cloudnear = 1.0; //9e3 12e3  //do not render too close clouds on the zenith
@@ -117,7 +122,7 @@ float triNoise2d(in vec2 p, float spd) {
     vec2 bp = p;
     for(float i = 0.; i < 5.; i++) {
         vec2 dg = tri2(bp * 1.85) * .75;
-        dg *= mm2(t * spd);
+        dg *= mm2(iTime * spd);
         p -= dg / z2;
 
         bp *= 1.3;
@@ -181,7 +186,7 @@ float fnoise(vec3 p, in float t) {
 
     f = 0.5000 * Noise(p);
     p = p * 3.02;
-    p.y -= t * .1; //t*.05 speed cloud changes
+    p.y -= t * .1; //speed cloud
     f += 0.2500 * Noise(p);
     p = p * 3.03;
     p.y += t * .06;
@@ -198,7 +203,7 @@ float fnoise(vec3 p, in float t) {
 float cloud(vec3 p, in float t) {
     float cld = fnoise(p * cloudnoise, t) + cloudy * 0.1;
     cld = smoothstep(.4 + .04, .6 + .04, cld);
-    cld *= cld * (5.0 * rainmulti);
+    cld *= cld * 25.0;
     return cld + haze;
 }
 
@@ -211,19 +216,10 @@ void densities(in vec3 pos, out float rayleigh, out float mie) {
 
     float cld = 0.;
     if(mincloudheight < h && h < maxcloudheight) {
-		cld = cloud(pos+vec3(t*1e3,0., t*1e3),t)*cloudy;
-        cld = cloud(pos + vec3(xaxiscloud, yaxiscloud, zaxiscloud), t) * cloudy; //direction and speed the cloud movers
+		cld = cloud(pos+vec3(iTime*1e3,0., iTime*1e3),iTime)*cloudy;
+        cld = cloud(pos + vec3(xaxiscloud, yaxiscloud, zaxiscloud), iTime) * cloudy; //direction and speed the cloud movers
         cld *= sin(3.1415 * (h - mincloudheight) / mincloudheight) * cloudy;
     }
-	#ifdef cloud2
-    float cld2 = 0.;
-    if(12e3 < h && h < 15.5e3) {
-        cld2 = fnoise(pos * 3e-4, t) * cloud(pos * 32.0 + vec3(27612.3, 0., -t * 15e3), t);
-        cld2 *= sin(3.1413 * (h - 12e3) / 12e3) * cloudyhigh;
-        cld2 = clamp(cld2, 0.0, 1.0);
-    }
-
-    #endif
 
     #if ORIG_CLOUD
     if(dist < cloudfar) {
@@ -240,9 +236,6 @@ void densities(in vec3 pos, out float rayleigh, out float mie) {
     #endif
 
     mie = exp(-h / Hm) + cld + haze;
-	#ifdef cloud2
-    mie += cld2;
-	#endif
 
 }
 
@@ -258,14 +251,15 @@ float escape(in vec3 p, in vec3 d, in float R) {
     return (t1 >= 0.) ? t1 : t2;
 }
 
-void scatter(vec3 o, vec3 d, out vec3 col, out vec3 scat, in float t) {
+void scatter(vec3 o, vec3 d, out vec3 col, out vec3 scat) {
 
     float L = escape(o, d, Ra);
     float mu = dot(d, Ds);
-    float opmu2 = 1. + mu * mu;
-    float phaseR = .0596831 * opmu2;
-    float phaseM = .1193662 * (1. - g2) * opmu2 / ((2. + g2) * pow(1. + g2 - 2. * g * mu, 1.5));
-    float phaseS = .1193662 * (1. - s2) * opmu2 / ((2. + s2) * pow(1. + s2 - 2. * s * mu, 1.5));
+    float opmu2 = 1.+ mu * mu;
+
+    float phaseR = phaseR_c * opmu2;
+    float phaseM = phaseM_c * (1. - g2) * opmu2 / ((2. + g2) * pow(1. + g2 - 2. * g * mu, 1.5));
+    float phaseS = phaseS_c * (1. - s2) * opmu2 / ((2. + s2) * pow(1. + s2 - 2. * s * mu, 1.5));
 
     float depthR = 0., depthM = 0.;
     vec3 R = vec3(0.), M = vec3(0.);
@@ -303,13 +297,12 @@ void scatter(vec3 o, vec3 d, out vec3 col, out vec3 scat, in float t) {
     }
 
 	//col = (I) * (R * bR * phaseR + M * bM * (phaseM ));
-    col = (I) * (M * bM * (phaseM)); // Mie scattering
-    #if NICE_HACK_SUN == 1
+    col = (I) * (M * bR * (phaseM)); // Mie scattering
     col += (SI) * (M * bM * phaseS); //Sun
-    #endif
     col += (I) * (R * bR * phaseR); //Rayleigh scattering
+    
     scat = 0.1 * (bM * depthM);
-    //scat = 0.0 + clamp(depthM*5e-7,0.,1.); 
+    //scat = 0.0f + clamp(depthM*5e-7,0.,1.); 
 }
 
 vec3 hash33(vec3 p) {
@@ -378,92 +371,58 @@ vec3 getAtmosphericScattering(vec2 p, vec2 lp) {
 }
 //END SIMPLE SUN STUFF
 
-//RAIN STUFF
-vec3 N31(float p) {
-    //  3 out, 1 in... DAVE HOSKINS
-    vec3 p3 = fract(vec3(p) * vec3(.1031, .11369, .13787));
-    p3 += dot(p3, p3.yzx + 19.19);
-    return fract(vec3((p3.x + p3.y) * p3.z, (p3.x + p3.z) * p3.y, (p3.y + p3.z) * p3.x));
+
+//FOG
+
+vec3 rotate(vec3 r, float v){ return vec3(r.x*cos(v)+r.z*sin(v),r.y,r.z*cos(v)-r.x*sin(v));}
+
+float noise( in vec3 x )
+{
+	float  z = x.z*64.0;
+	vec2 offz = vec2(0.317,0.123);
+	vec2 uv1 = x.xy + offz*floor(z); 
+	vec2 uv2 = uv1  + offz;
+	return mix(textureLod( iChannel0, uv1 ,0.0).x,textureLod( iChannel0, uv2 ,0.0).x,fract(z))-0.5;
 }
 
-float SawTooth(float t) {
-    return cos(t + cos(t)) + sin(2. * t) * .2 + sin(4. * t) * .02;
+float noises( in vec3 p){
+	float a = 0.0;
+	for(float i=1.0;i<6.0;i++){
+		a += noise(p)/i;
+		p = p*2.0 + vec3(0.0,a*0.001/i,a*0.0001/i);
+	}
+	return a;
 }
 
-float DeltaSawTooth(float t) {
-    return 0.4 * cos(2. * t) + 0.08 * cos(4. * t) - (1. - sin(t)) * sin(t + cos(t));
+float base( in vec3 p){
+	return noise(p*0.00002)*1200.0;
 }
 
-vec2 GetDrops(vec2 uv, float seed, float m) {
-
-    float t2 = t + m;
-    vec2 o = vec2(0.);
-
-    #ifndef DROP_DEBUG
-    uv.y += t2 * .05;
-    #endif
-
-    uv *= vec2(10., 2.5) * 2.;
-    vec2 id = floor(uv);
-    vec3 n = N31(id.x + (id.y + seed) * 546.3524);
-    vec2 bd = fract(uv);
-
-    vec2 uv2 = bd;
-
-    bd -= 0.5;
-
-    bd.y *= 4.;
-
-    bd.x += (n.x - .5) * rainy;
-
-    t2 += n.z * 6.28;
-    float slide = SawTooth(t2);
-
-    float ts = 1.5;
-    vec2 trailPos = vec2(bd.x * ts, (fract(bd.y * ts * 2. - t2 * 2.) - .5) * .5);
-
-    bd.y += slide * 2.;								// make drops slide down
-
-#ifdef HIGH_QUALITY
-    float dropShape = bd.x * bd.x;
-    dropShape *= DeltaSawTooth(t);
-    bd.y += dropShape;								// change shape of drop when it is falling
-#endif
-
-    float d = length(bd);							// distance to main drop
-
-    float trailMask = S(-.2, .2, bd.y);				// mask out drops that are below the main
-    trailMask *= bd.y;								// fade dropsize
-    float td = length(trailPos * max(.5, trailMask));	// distance to trail drops
-
-    float mainDrop = S(.2, .1, d);
-    float dropTrail = S(.1, .02, td);
-
-    dropTrail *= trailMask;
-    o = mix(bd * mainDrop, trailPos, dropTrail);		// mix main drop and drop trail
-
-    #ifdef DROP_DEBUG
-    if(uv2.x < .02 || uv2.y < .01)
-        o = vec2(1.);
-    #endif
-
-    return o;
+float ground( in vec3 p){
+	return base(p)+noises(p.zxy*0.00005+10.0)*40.0*(0.0-p.y*0.01)+p.y;
 }
-//END RAIN STUFF
 
+float clouds( in vec3 p){
+	float b = base(p);
+	p.y += b*0.5/abs(p.y) + 100.0;
+	return noises(vec3(p.x*0.3+((iTime+iMouse.y)*30.0),p.y,p.z)*0.00002)-max(p.y,0.0)*0.00009;
+}
+
+//END FOG
+
+uniform float t_val_1;
+uniform float t_val_2;
 #ifdef shadertoy
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float AR = iResolution.x / iResolution.y;
-    float M = 1.0; //canvas.innerWidth/M //canvas.innerHeight/M --res
 
-    vec2 uvMouse = (iMouse.xy / iResolution.xy);
-    uvMouse.x *= AR;
+    vec2 sunPos = (iMouse.xy / iResolution.xy);
+    sunPos.x *= AR;
 
     vec2 uv0 = (fragCoord.xy / iResolution.xy);
-    uv0 *= M;
 	//uv0.x *= AR;
 
-    vec2 uv = uv0 * (2.0 * M) - (1.0 * M);
+    vec2 uv = uv0 * (2.0) - (1.0);
     uv.x *= AR;
 
 #else
@@ -471,93 +430,124 @@ void main() {
     float AR = iResolution.x / iResolution.y;
     vec2 uv = vec2(2.0 * vUV.x - 1.0, vUV.y* 2.0 - 1.0);
 
-    vec2 uvMouse = vec2(sunx, suny);
-    float M = 1.0; //canvas.innerWidth/M //canvas.innerHeight/M --res
+    vec2 sunPos = vec2((0.7 - (0.05 * fov)), (1.0 - (0.05 * fov)));
 
     uv.x *= AR;
 #endif
+    
+    float gradSun = mod(elapsed*0.001 + (d_startDay*0.01) * tday,tday)/tday * 2.0 * PI;
+    sunPos = vec2(0.9-0.3*cos(gradSun),
+                   0.5+0.4*sin(gradSun));
 
-// uvMouse.y = .6;
-    if(uvMouse.y == 0.)
-        uvMouse.y = (0.7 - (0.05 * fov)); //initial view 
-    if(uvMouse.x == 0.)
-        uvMouse.x = (1.0 - (0.05 * fov)); //initial view
-
-    Ds = normalize(vec3(uvMouse.x - ((0.5 * AR)), uvMouse.y - 0.5, (fov / -2.0)));
+    Ds = normalize(vec3(sunPos.x - ((0.5 * AR)), sunPos.y - 0.5, (fov / -2.0)));
 
     vec3 O = vec3(0., cameraheight, 0.);
-    vec3 D = normalize(vec3(uv, -(fov * M)));
+    vec3 D = normalize(vec3(uv, -fov));
 
     vec3 color = vec3(0.);
     vec3 scat = vec3(0.);
-
-    //float scat = 0.;
     float att = 1.;
-    float staratt = 1.;
-    float scatatt = 1.;
     vec3 star = vec3(0.);
     vec4 aur = vec4(0.);
 
-    float fade = smoothstep(0., 0.01, abs(D.y)) * 0.5 + 0.9;
+    float fade = smoothstep(0., 0.01, abs(D.y)) * 0.5 + 0.6;
 
-    staratt = 1. - min(1.0, (uvMouse.y * 2.0));
-    scatatt = 1. - min(1.0, (uvMouse.y * 2.2));
+    float staratt = 1. - min(1.0, (sunPos.y * 2.0));
+    float scatatt = 1. - min(1.0, (sunPos.y * 2.2));
 
     if(D.y < -ts) {
         float L = -O.y / D.y;
         O = O + D * L;
         D.y = -D.y;
-        D = normalize(D + vec3(0, .003 * sin(t + 6.2831 * noise(O.xz + vec2(0., -t * 1e3))), 0.));
+        D = normalize(D + vec3(0, .003 * sin(iTime + 6.2831 * noise(O.xz + vec2(0., -iTime * 1e3))), 0.));
         att = .6;
         star = stars(D);
-        uvMouse.y < 0.5 ? aur = smoothstep(0.0, 2.5, aurora(O, D)) : aur = aur;
+        sunPos.y < 0.5 ? aur = smoothstep(0.0, 2.5, aurora(O, D)) : aur = aur;
     } else {
         float L1 = O.y / D.y;
         vec3 O1 = O + D * L1;
 
         vec3 D1 = vec3(1.);
-        D1 = normalize(D + vec3(1., 0.0009 * sin(t + 6.2831 * noise(O1.xz + vec2(0., t * 0.8))), 0.));
+        D1 = normalize(D + vec3(1., 0.0009 * sin(iTime + 6.2831 * noise(O1.xz + vec2(0., iTime * 0.8))), 0.));
         star = stars(D1);
-        uvMouse.y < 0.5 ? aur = smoothstep(0., 1.5, aurora(O, D)) * fade : aur = aur;
+        sunPos.y < 0.5 ? aur = smoothstep(0., 1.5, aurora(O, D)) * fade : aur = aur;
     }
 
     star *= att;
     star *= staratt;
 
-    scatter(O, D, color, scat, t);
+    scatter(O, D, color, scat);
+    
     color *= att;
     scat *= att;
     scat *= scatatt;
 
 	//draw the badly implemented sun
-if(extend_sun == 1){
-    // vec2 uv1 = (fragCoord.xy / iResolution.xy);
-    vec2 uv1 = vUV;
-    uv1 *= M;
-    uv1.x *= AR;
+    if(extend_sun == 1){
+        // vec2 uv1 = (fragCoord.xy / iResolution.xy);
+        vec2 uv1 = vUV;
+        uv1.x *= AR;
 
-    vec3 sun2 = getAtmosphericScattering(uv1, vec2(uvMouse.x, uvMouse.y));
-    color += sun2;
-}
+        vec3 sun2 = getAtmosphericScattering(uv1, vec2(sunPos.x, sunPos.y));
+        color += sun2;
+    }
 
     color += scat;
     color += star;
     color=color*(1.-(aur.a)*scatatt) + (aur.rgb*scatatt);
     color += aur.rgb * scatatt;
 
-#if ENABLE_RAIN == 1
-    vec2 drops = vec2(0.);
-    if(rainmulti > 1.0) {
-        drops = GetDrops(uv / 2.0, 1., 1.);
+if(false){
+//________________________________________________________________
+    // time        = iTime*5.0+floor(iTime*0.1)*150.0;
+    // vec2 uv     = fragCoord.xy/(iResolution.xx*0.5)-vec2(1.0,iResolution.y/iResolution.x);
+    vec3 campos   = vec3(30.0,500.0,iTime*8.0);
+		 campos.y = 1500.0-base(campos);
+    vec3 ray   = rotate(normalize(vec3(uv.x,uv.y-0.1,1.0).xyz),iMouse.x*0.09);
+    vec3 pos    = campos+ray;
+    vec3 sun    = vec3(0.0,0.6,-0.4);    	
+	
+    // raymarch
+    float test  = 0.0;
+    float fog   = 0.0;
+	float dist  = 0.0;
 
-        color += drops.x + drops.y;
-    }
-#endif
+	vec3  p1 = pos;	
+	for(float i=1.0;i<50.0;i++){
+        test  = ground(p1); 
+		fog  += max(test*clouds(p1),fog*0.02);
+		p1   += ray*min(test,i*i*0.5);
+		dist += test;
+		if(abs(test)<10.0||dist>40000.0) break;
+	}
+
+	float l     = sin(dot(ray,sun));
+	vec3  light = vec3(l,0.0,-l)+ray.y*0.2;
+    
+	float amb = smoothstep(-100.0,100.0,ground(p1+vec3(0.0,30.0,0.0)+sun*10.0))-smoothstep(1000.0,-0.0,p1.y)*0.7;
+	vec3  ground = vec3(0.30,0.30,0.25)+sin(p1*0.001)*0.01+noise(vec3(p1*0.002))*0.1+amb*0.7+light*0.01;
+		
+	float f = smoothstep(0.0,800.0,fog);
+	vec3  cloud = vec3(0.70,0.72,0.70);//+light*0.05+sin(fog*0.0002)*0.2+noise(p1)*0.05;
+
+	float h = smoothstep(10000.,40000.0,dist);
+	vec3  sky = cloud+ray.y*0.1-0.02;	
+	
+    vec3 layer_1 = vec4(pow(color, vec3(1.0 / 2.2)), 1.).xyz; //gamma correct
+
+	// gl_FragColor = vec4(sqrt(smoothstep(0.2,1.0,mix(mix(layer_1,sky,h),cloud,f)-dot(uv,uv)*0.1)),1.0);
+
+    // gl_FragColor = vec4(sqrt(smoothstep(t_val_1,t_val_2,mix(layer_1,sky,sky))),1.0);
+    gl_FragColor = vec4(layer_1.xyz,1.0);
+}else{
+    gl_FragColor = vec4(pow(color, vec3(1.0 / 2.2)), 1.); //gamma correct
+}
+//________________________________________________________________
 
 //float env = pow( smoothstep(.5, iResolution.x / iResolution.y, length(uv*0.8)), 0.0);
 #ifdef shadertoy
     fragColor = vec4(pow(color, vec3(1.0 / 2.2)), 1.); //gamma correct
 #else
-    gl_FragColor = vec4(pow(color, vec3(1.0 / 2.2)), 1.); //gamma correct
+    // gl_FragColor = vec4(pow(color, vec3(1.0 / 2.2)), 1.); //gamma correct
 #endif
 }
