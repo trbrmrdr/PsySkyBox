@@ -17,7 +17,7 @@ void main() {
     vNormal = normal;
 
     vUV = uv;
-                  // vUV.y =1.-vUV.y;     // flip uv
+    
     gl_Position = worldViewProjection * p;
 
 }
