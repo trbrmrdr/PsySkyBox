@@ -293,10 +293,10 @@ window.onload = async function () {
 
     // async function mainScene() {
 
-    verts_shader = await fetch('/src/shader.vert');
+    verts_shader = await fetch('/src/shader.vert?1.9');
     verts_shader = await verts_shader.text()
 
-    frag_shader = await fetch('/src/shader.frag');
+    frag_shader = await fetch('/src/shader.frag?1.9');
     frag_shader = await frag_shader.text()
 
 
