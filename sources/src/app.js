@@ -3,12 +3,15 @@ window.onload = async function () {
 
     var verts_shader, frag_shader;
 
+    var time = 0, elapsed = 0.0;
+    var timestamp = Date.now();
+
     var Config = {
 
-        valX: 50,
-        valY: 50,
+        valX: 100,
+        valY: 39,
         hasDynamicDay: false,
-        tday: 60,
+        tday: 200,
         d_startDay: 1,
 
 
@@ -30,6 +33,7 @@ window.onload = async function () {
 
         steps: 8,
         stepss: 8,
+        step_fog:32,
 
         extend_sun: true,
 
@@ -48,8 +52,13 @@ window.onload = async function () {
             Config.sky_color = new BABYLON.Vector3(3.5e-6, 333.1e-6, 235.8e-6);
         },
 
-        t_val_1:0.4,
-        t_val_2:1.0
+        t_val_1: 0.05,
+        t_val_2: 0.2,
+
+        t_val_3: 0.5,
+
+        hasFog: false,
+        fogFader: 0.00,
     };
 
     // const dat = require('dat.gui');
@@ -57,19 +66,21 @@ window.onload = async function () {
     //https://github.com/dataarts/dat.gui/blob/master/API.md
     const gui = new dat.GUI()
 
-    let folder = gui.addFolder("День");
-    folder.add(Config, 'hasDynamicDay').name('динамический?').onChange(function (newVal) {
-        if (newVal == true) {
-            timestamp = Date.now()
+    let folder = gui.addFolder("Day parameters");
+    folder.add(Config, 'hasDynamicDay').name('Dynamic time').onChange(function (newVal) {
+        timestamp = Date.now();
+        if (newVal) {
             // elapsed = Date.now() - timestamp;
+            Config.d_startDay = 0;
+            gui.updateDisplay()
         }
     });
-    folder.add(Config, 'tday', 0, 1000).name('длинна дня(с.)');
-    folder.add(Config, 'd_startDay', 0, 100).name('dStartDay%');
+    folder.add(Config, 'tday', 0, 1000).name('Length_day(sec.)');
+    folder.add(Config, 'd_startDay', 0, 100).name('dStartDay %');
     folder.open();
 
-    folder = gui.addFolder("Рассеивание");
-    folder.add(Config, 'hasScattering').onChange(function (newValue) {
+    folder = gui.addFolder("Scattering");
+    folder.add(Config, 'hasScattering').name('Enable').onChange(function (newValue) {
         if (newValue) {
             Config.R0 = 6360e3;
             Config.dR = 20e3;
@@ -101,8 +112,8 @@ window.onload = async function () {
 
     folder.open();
 
-    gui.add(Config, 'speed', 5, 30).name('скорость тучь');
-    gui.add(Config, 'cloudy', 0, 1.0, 0.1)
+    gui.add(Config, 'speed', 5, 30).name('Clouds_movement');
+    gui.add(Config, 'cloudy', 0, 1.0, 0.1).name('Cloudiness')
 
     // gui.add(Config, 'steps', 1, 100)
     // gui.add(Config, 'stepss', 1, 100)
@@ -126,11 +137,25 @@ window.onload = async function () {
     });
 
 
+    folder = gui.addFolder('Haze')
+    folder.add(Config, 'hasFog').name('Enable').onChange(function (newVal) {
+        if (newVal) {
+            Config.fogFader = 0.55;
+        } else {
+            Config.fogFader = 0.0;
+        }
+        gui.updateDisplay()
+    })
+    folder.add(Config, 'fogFader', 0, 1, 0.01);
+    folder.add(Config,'step_fog',1,34,1).name('качество');
+    folder.open();
+
     // folder = gui.addFolder('Debug');
     // folder.add(Config, 'valX', 1, 100);
     // folder.add(Config, 'valY', 1, 100);
-    // folder.add(Config,'t_val_1',0,1.0,0.05);
-    // folder.add(Config,'t_val_2',0.0,1.0,0.05);
+    // folder.add(Config, 't_val_1', 0, 1.0, 0.05);
+    // folder.add(Config, 't_val_2', 0.0, 1.0, 0.05);
+    // folder.add(Config, 't_val_3', 0.0, 1.0, 0.05);
     // folder.open();
 
 
@@ -191,8 +216,6 @@ window.onload = async function () {
             var plane = BABYLON.MeshBuilder.CreatePlane("plane", { width: window.innerWidth, height: window.innerHeight }, scene);
             plane.material = shaderMaterial
 
-            var time = 0, elapsed = 0.0;
-            var timestamp = Date.now();
             scene.registerBeforeRender(function () {
 
                 //console.log(elapsed)
@@ -221,11 +244,14 @@ window.onload = async function () {
 
                 // 
                 shaderMaterial.setFloat("iTime", time * Config.speed);
-                shaderMaterial.setFloat("iMouse",new BABYLON.Vector2(Config.valX / 100, Config.valY / 100));
+                shaderMaterial.setVector2("iMouse", new BABYLON.Vector2(Config.valX / 100.0, Config.valY / 100.0));
                 shaderMaterial.setFloat("cloudy", Config.cloudy);
 
                 shaderMaterial.setFloat("t_val_1", Config.t_val_1);
                 shaderMaterial.setFloat("t_val_2", Config.t_val_2);
+                shaderMaterial.setFloat("t_val_3", Config.t_val_3);
+                shaderMaterial.setFloat("fogFader", Config.fogFader);
+                shaderMaterial.setInt("step_fog", Config.step_fog);
 
 
                 shaderMaterial.setInt("extend_sun", Config.extend_sun ? 1 : 0);

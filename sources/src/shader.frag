@@ -43,6 +43,8 @@ uniform float cloudy;
 uniform int steps;
 uniform int stepss;
 
+uniform int step_fog;
+
 
 
 uniform float phaseR_c;//.0596831
@@ -374,44 +376,154 @@ vec3 getAtmosphericScattering(vec2 p, vec2 lp) {
 
 //FOG
 
-vec3 rotate(vec3 r, float v){ return vec3(r.x*cos(v)+r.z*sin(v),r.y,r.z*cos(v)-r.x*sin(v));}
+#define BUMPFACTOR 0.1
+#define EPSILON 0.1
+#define BUMPDISTANCE 60.
 
-float noise( in vec3 x )
-{
-	float  z = x.z*64.0;
-	vec2 offz = vec2(0.317,0.123);
-	vec2 uv1 = x.xy + offz*floor(z); 
-	vec2 uv2 = uv1  + offz;
-	return mix(textureLod( iChannel0, uv1 ,0.0).x,textureLod( iChannel0, uv2 ,0.0).x,fract(z))-0.5;
+#define time (iTime+285.)
+
+// Noise functions by inigo quilez 
+
+// float noise( const in vec2 x ) {
+//     vec2 p = floor(x);
+//     vec2 f = fract(x);
+// 	f = f*f*(3.0-2.0*f);
+	
+// 	vec2 uv = (p.xy) + f.xy;
+// 	return textureLod( iChannel0, (uv+ 0.5)/256.0, 0.0 ).x;
+// }
+
+float noise( const in vec3 x ) {
+    vec3 p = floor(x);
+    vec3 f = fract(x);
+	f = f*f*(3.0-2.0*f);
+	
+	vec2 uv = (p.xy+vec2(37.0,17.0)*p.z) + f.xy;
+	vec2 rg = textureLod( iChannel0, (uv+ 0.5)/256.0, 0.0 ).yx;
+	return mix( rg.x, rg.y, f.z );
 }
 
-float noises( in vec3 p){
-	float a = 0.0;
-	for(float i=1.0;i<6.0;i++){
-		a += noise(p)/i;
-		p = p*2.0 + vec3(0.0,a*0.001/i,a*0.0001/i);
+mat2 rot(const in float a) {
+	return mat2(cos(a),sin(a),-sin(a),cos(a));	
+}
+
+// mat2 m2 = mat2(0.95534, 0.29552, -0.29552, 0.95534);
+// const mat2 m2 = mat2( 0.60, -0.80, 0.80, 0.60 );
+
+const mat3 m3 = mat3( 0.00,  0.80,  0.60,
+                     -0.80,  0.36, -0.48,
+                     -0.60, -0.48,  0.64 );
+
+float fbm( in vec3 p ) {
+    float f = 0.0;
+    f += 0.5000*noise( p ); p = m3*p*2.02;
+    f += 0.2500*noise( p ); p = m3*p*2.03;
+    f += 0.1250*noise( p ); p = m3*p*2.01;
+    f += 0.0625*noise( p );
+    return f/0.9375;
+}
+
+float hash( in float n ) {
+    return fract(sin(n)*43758.5453);
+}
+
+// intersection functions
+
+bool intersectPlane(const in vec3 ro, const in vec3 rd, const in float height, inout float dist) {	
+	if (rd.y==0.0) {
+		return false;
 	}
-	return a;
+		
+	float d = -(ro.y - height)/rd.y;
+	d = min(100000.0, d);
+	if( d > 0. && d < dist ) {
+		dist = d;
+		return true;
+    } else {
+		return false;
+	}
 }
 
-float base( in vec3 p){
-	return noise(p*0.00002)*1200.0;
-}
-
-float ground( in vec3 p){
-	return base(p)+noises(p.zxy*0.00005+10.0)*40.0*(0.0-p.y*0.01)+p.y;
-}
-
-float clouds( in vec3 p){
-	float b = base(p);
-	p.y += b*0.5/abs(p.y) + 100.0;
-	return noises(vec3(p.x*0.3+((iTime+iMouse.y)*30.0),p.y,p.z)*0.00002)-max(p.y,0.0)*0.00009;
-}
-
-//END FOG
+// light direction
 
 uniform float t_val_1;
 uniform float t_val_2;
+uniform float t_val_3;
+uniform float fogFader;
+
+vec3 lig(){
+    return normalize(vec3( 2.5,0.5, 0.6));
+}
+
+vec3 bgColor( const in vec3 rd ) {
+	float sun = clamp( dot(lig(),rd), 0.0, 1.0 );
+	vec3 col = vec3(0.5, 0.52, 0.55) - rd.y*0.2*vec3(1.0,0.8,1.0) + 0.15*0.75;
+	col += vec3(1.0,.6,0.1)*pow( sun, 8.0 );
+	// col *= 0.95;
+	return col;
+}
+
+// coulds functions by inigo quilez
+//#define CLOUDSCALE ((50.)/(64.*0.03))
+#define CLOUDSCALE  (50.)
+
+float cloudMap( const in vec3 p, const in float ani ) {
+	vec3 r = p/CLOUDSCALE;
+
+	float den = -1.8+cos(r.y*5.-4.3);
+		
+	float f;
+	vec3 q = 2.5*r*vec3(0.75,1.0,0.75)  + vec3(1.0,2.0,1.0)*ani*0.15;
+    f  = 0.50000*noise( q ); q = q*2.02 - vec3(-1.0,1.0,-1.0)*ani*0.15;
+    f += 0.25000*noise( q ); q = q*2.03 + vec3(1.0,-1.0,1.0)*ani*0.15;
+    f += 0.12500*noise( q ); q = q*2.01 - vec3(1.0,1.0,-1.0)*ani*0.15;
+    f += 0.06250*noise( q ); q = q*2.02 + vec3(1.0,1.0,1.0)*ani*0.15;
+    f += 0.03125*noise( q );
+	
+	return 0.065*clamp( den + 2.4*f, 0.0, 1.0 );
+}
+
+vec3 raymarchClouds( const in vec3 ro, const in vec3 rd, const in vec3 bgc, const in vec3 fgc, const in float startdist, const in float maxdist, const in float ani ) {
+    // dithering	
+	float t = startdist+CLOUDSCALE*0.02*hash(rd.x+35.6987221*rd.y+time);//0.1*texture( iChannel0, fragCoord.xy/iChannelResolution[0].x ).x;
+	
+    // raymarch	
+	vec4 sum = vec4( 0.0 );
+	for( int i=0; i<step_fog; i++ ) {
+		if( sum.a > 0.99 || t > maxdist ) continue;
+		
+		vec3 pos = ro + t*rd;
+		float a = cloudMap( pos, ani );
+
+        // lighting	
+		float dif = clamp(0.1 + 0.8*(a - cloudMap( pos + lig()*CLOUDSCALE, ani )), 0., 0.5);
+		vec4 col = vec4( (1.+dif)*fgc, a );
+		// fog		
+		// col.xyz = mix( col.xyz, fgc, 1.0-exp(-0.0000005*t*t) );
+		
+		col.rgb *= col.a;
+		sum = sum + col*(1.0 - sum.a);	
+
+        // advance ray with LOD
+		t += (0.03*CLOUDSCALE)+t*0.012;
+	}
+
+    // blend with background	
+	sum.xyz = mix( bgc, sum.xyz/(sum.w+0.0001), sum.w );
+	
+	return clamp( sum.xyz, 0.0, 1.0 );
+}
+
+
+float waterMap( vec2 pos ) {
+	vec2 posm = pos * m2;
+	
+	return abs( fbm( vec3( 8.*posm, time ))-0.5 )* 0.1;
+}
+
+
+//END FOG
+
 #ifdef shadertoy
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float AR = iResolution.x / iResolution.y;
@@ -497,48 +609,82 @@ void main() {
     color=color*(1.-(aur.a)*scatatt) + (aur.rgb*scatatt);
     color += aur.rgb * scatatt;
 
-if(false){
+if(fogFader>0.0){
 //________________________________________________________________
-    // time        = iTime*5.0+floor(iTime*0.1)*150.0;
-    // vec2 uv     = fragCoord.xy/(iResolution.xx*0.5)-vec2(1.0,iResolution.y/iResolution.x);
-    vec3 campos   = vec3(30.0,500.0,iTime*8.0);
-		 campos.y = 1500.0-base(campos);
-    vec3 ray   = rotate(normalize(vec3(uv.x,uv.y-0.1,1.0).xyz),iMouse.x*0.09);
-    vec3 pos    = campos+ray;
-    vec3 sun    = vec3(0.0,0.6,-0.4);    	
+	vec2 q = uv;//fragCoord.xy / iResolution.xy;
+    vec2 p = -1.0 + 2.0*q;
+    // p.x *= iResolution.x/ iResolution.y;
 	
-    // raymarch
-    float test  = 0.0;
-    float fog   = 0.0;
-	float dist  = 0.0;
+	// camera parameters
+	// vec3 ro = vec3(iMouse.x*5., iMouse.y*2., 0.0);
+	// vec3 ta = vec3(t_val_1*100.,t_val_2*10.,1.0);
 
-	vec3  p1 = pos;	
-	for(float i=1.0;i<50.0;i++){
-        test  = ground(p1); 
-		fog  += max(test*clouds(p1),fog*0.02);
-		p1   += ray*min(test,i*i*0.5);
-		dist += test;
-		if(abs(test)<10.0||dist>40000.0) break;
+    // vec3 ro = vec3(iMouse.x*5., iMouse.y*2., 0.0);
+	// vec3 ta = vec3(t_val_1*100.,t_val_2*10.,1.0);
+    
+    vec3 ro = vec3(5. , 0.92, 0.0);
+	vec3 ta = vec3(5.0,2.0,1.0);
+
+    
+	// build ray
+    vec3 ww = normalize( ta - ro);
+    vec3 uu = normalize(cross( vec3(0.0,1.0,0.0), ww ));
+    vec3 vv = normalize(cross(ww,uu));
+    vec3 rd = normalize( p.x*uu + p.y*vv + 2.5*ww );
+
+	float fresnel, refldist = 5000., maxdist = 5000.;
+	bool reflected = false;
+	vec3 normal, col = bgColor( rd );
+	vec3 roo = ro, rdo = rd, bgc = col;
+	
+	if( intersectPlane( ro, rd, 0., refldist ) && refldist < 200. ) {
+		ro += refldist*rd;	
+		vec2 coord = ro.xz;
+		float bumpfactor = BUMPFACTOR * (1. - smoothstep( 0., BUMPDISTANCE, refldist) );
+				
+		vec2 dx = vec2( EPSILON, 0. );
+		vec2 dz = vec2( 0., EPSILON );
+		
+		normal = vec3( 0., 1., 0. );
+		normal.x = -bumpfactor * (waterMap(coord + dx) - waterMap(coord-dx) ) / (2. * EPSILON);
+		normal.z = -bumpfactor * (waterMap(coord + dz) - waterMap(coord-dz) ) / (2. * EPSILON);
+		normal = normalize( normal );		
+		
+		float ndotr = dot(normal,rd);
+		fresnel = pow(1.0-abs(ndotr),5.);
+
+		rd = reflect( rd, normal);
+
+		reflected = true;
+		bgc = col = bgColor( rd );
 	}
 
-	float l     = sin(dot(ray,sun));
-	vec3  light = vec3(l,0.0,-l)+ray.y*0.2;
-    
-	float amb = smoothstep(-100.0,100.0,ground(p1+vec3(0.0,30.0,0.0)+sun*10.0))-smoothstep(1000.0,-0.0,p1.y)*0.7;
-	vec3  ground = vec3(0.30,0.30,0.25)+sin(p1*0.001)*0.01+noise(vec3(p1*0.002))*0.1+amb*0.7+light*0.01;
-		
-	float f = smoothstep(0.0,800.0,fog);
-	vec3  cloud = vec3(0.70,0.72,0.70);//+light*0.05+sin(fog*0.0002)*0.2+noise(p1)*0.05;
-
-	float h = smoothstep(10000.,40000.0,dist);
-	vec3  sky = cloud+ray.y*0.1-0.02;	
+	// col = raymarchTerrain( ro, rd, col, reflected?(800.-refldist):800., maxdist );
+    col = raymarchClouds( ro, rd, col, bgc, 
+    reflected ? max(0.,min(150.,(150.-refldist))) : 150., maxdist, time*5. );
 	
+	// if( reflected ) {
+	// 	col = mix( col.xyz, bgc, 1.0-exp(-0.0000005*refldist*refldist) );
+	// 	col *= fresnel*0.9;		
+	// 	vec3 refr = refract( rdo, normal, 1./1.3330 );
+	// 	intersectPlane( ro, refr, -2., refldist );
+	// 	col += mix( texture( iChannel0, (roo+refldist*refr).xz*1.3 ).xyz * 
+	// 			   vec3(1.,.9,0.6), vec3(1.,.9,0.8)*0.5, clamp( refldist / 3., 0., 1.) ) 
+	// 		   * (1.-fresnel)*0.125;
+	// }
+	
+	col = pow( col, vec3(0.7) );
+	
+	// contrast, saturation and vignetting	
+	col = col*col*(3.0-1.5*col);
+    col = mix( col, vec3(dot(col,vec3(0.33))), -0.5 );
+ 	// col *= 0.25 + 0.75*pow( 16.0*q.x*q.y*(1.0-q.x)*(1.0-q.y), 0.1 );
+
+    gl_FragColor = vec4(col,1.0);
     vec3 layer_1 = vec4(pow(color, vec3(1.0 / 2.2)), 1.).xyz; //gamma correct
 
-	// gl_FragColor = vec4(sqrt(smoothstep(0.2,1.0,mix(mix(layer_1,sky,h),cloud,f)-dot(uv,uv)*0.1)),1.0);
+    gl_FragColor = vec4( mix(col,layer_1,1.0-col*fogFader), 1.0 );
 
-    // gl_FragColor = vec4(sqrt(smoothstep(t_val_1,t_val_2,mix(layer_1,sky,sky))),1.0);
-    gl_FragColor = vec4(layer_1.xyz,1.0);
 }else{
     gl_FragColor = vec4(pow(color, vec3(1.0 / 2.2)), 1.); //gamma correct
 }
