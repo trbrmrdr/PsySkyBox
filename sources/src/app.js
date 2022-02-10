@@ -76,7 +76,7 @@ window.onload = async function () {
         }
     });
     folder.add(Config, 'tday', 0, 1000).name('Length_day(sec.)');
-    folder.add(Config, 'd_startDay', 0, 100).name('dStartDay %');
+    folder.add(Config, 'd_startDay', 0, 100).name('Day time');
     folder.open();
 
     folder = gui.addFolder("Scattering");
@@ -112,7 +112,7 @@ window.onload = async function () {
 
     folder.open();
 
-    gui.add(Config, 'speed', 5, 30).name('Clouds_movement');
+    gui.add(Config, 'speed', 5, 30).name('Cloud_move.');
     gui.add(Config, 'cloudy', 0, 1.0, 0.1).name('Cloudiness')
 
     // gui.add(Config, 'steps', 1, 100)
@@ -293,10 +293,10 @@ window.onload = async function () {
 
     // async function mainScene() {
 
-    verts_shader = await fetch('/src/shader.vert?1.9');
+    verts_shader = await fetch('/src/shader.vert');
     verts_shader = await verts_shader.text()
 
-    frag_shader = await fetch('/src/shader.frag?1.9');
+    frag_shader = await fetch('/src/shader.frag?1.99');
     frag_shader = await frag_shader.text()
 
 
