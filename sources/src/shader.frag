@@ -145,6 +145,7 @@ vec4 aurora(vec3 ro, vec3 rd)
 
 float noise(in vec2 v)
 {
+    // return length(v);
     return textureLod(iChannel0, (v + .5) / 256., 0.).r;
 }
 
@@ -205,6 +206,7 @@ const float Hm = 1.2e3; // Mie scattering top //1.3e3
 
 void densities(in vec3 pos, out float rayleigh, out float mie)
 {
+    // в зависимости от высоты неба и минимальной высоты и максимальной считаем небо
     float h = length(pos - C) - R0;
     rayleigh = exp(-h / Hr);
     vec3 d = pos;
@@ -274,7 +276,7 @@ void scatter(vec3 o, vec3 d, out vec3 col, out vec3 scat)
 
     //слнце - микс цвета от центра - рыбий глаз
     //коофиценты для солнца относительно
-    //точка картины  относительно солнца
+    //фазовые переходы
     float phaseR = phaseR_c * opmu2;
     float phaseM = phaseM_c * (1. - g2) * opmu2 / ((2. + g2) * pow(1. + g2 - 2. * g * mu, 1.5));
     float phaseS = phaseS_c * (1. - s2) * opmu2 / ((2. + s2) * pow(1. + s2 - 2. * s * mu, 1.5));
@@ -283,8 +285,9 @@ void scatter(vec3 o, vec3 d, out vec3 col, out vec3 scat)
     vec3 R = vec3(0.), M = vec3(0.);
 
     float dl = L / float(steps);
-    for (int i = 0; i < steps; ++i)
+    for (int i = 0; i < steps; ++i)//numSamples
     {
+        //лучь падающий от глаза
         float l = float(i) * dl;
         vec3 p = (o + d * l);
 
@@ -295,13 +298,15 @@ void scatter(vec3 o, vec3 d, out vec3 col, out vec3 scat)
         depthR += dR;
         depthM += dM;
 
+        //плоскость планеты
         float Ls = escape(p, Ds, Ra);
         if (Ls > 0.)
         {
             float dls = Ls / float(stepss);
             float depthRs = 0., depthMs = 0.;
-            for (int j = 0; j < stepss; ++j)
+            for (int j = 0; j < stepss; ++j)//numSamplesLight
             {
+                //количество лучей
                 float ls = float(j) * dls;
                 vec3 ps = (p + Ds * ls);
                 float dRs, dMs;
@@ -336,7 +341,7 @@ vec3 hash33(vec3 p)
 vec3 stars(in vec3 p)
 {
     vec3 c = vec3(0.);
-    float res = iResolution.x * 2.5;
+    float res = iResolution.x ;
 
     for (float i = 0.; i < 4.; i++)
     {
@@ -378,6 +383,8 @@ vec3 getSkyAbsorption(vec3 x, float y)
     return absorption;
 }
 
+//https://64.github.io/tonemapping/
+//http://filmicworlds.com/blog/filmic-tonemapping-operators/
 vec3 jodieReinhardTonemap(vec3 c)
 {
     float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
@@ -388,12 +395,10 @@ vec3 jodieReinhardTonemap(vec3 c)
 vec3 getAtmosphericScattering(vec2 p, vec2 lp)
 {
     float zenithnew = zenithDensity(p.y);
-    // float sunPointDistMult = clamp(length(max(lp.y + 0.1 - zenithOffset, 0.0)), 0.0, 1.0);
     vec3 absorption = getSkyAbsorption(skyColor, zenithnew);
     vec3 sunAbsorption = getSkyAbsorption(skyColor, zenithDensity(lp.y + 0.1));
     vec3 sun3 = getSunPoint(p, lp) * absorption;
-    // vec3 mie2 = getMie(p, lp) * sunAbsorption;
-    vec3 totalSky = sun3; //+ mie2;
+    vec3 totalSky = sun3; 
     totalSky *= sunAbsorption * 0.5 + 0.5 * length(sunAbsorption);
     vec3 newSky = jodieReinhardTonemap(totalSky);
     return newSky;
@@ -489,12 +494,12 @@ vec3 raymarchClouds(const in vec3 ro, const in vec3 rd, const in vec3 bgc, const
 
 void main()
 {
+
     float AR = iResolution.x / iResolution.y;
     vec2 uv = vec2(2.0 * vUV.x - 1.0, vUV.y * 2.0 - 1.0);
+    uv.x *= AR;
 
     vec2 sunPos = vec2((0.7 - (0.05 * fov)), (1.0 - (0.05 * fov)));
-
-    uv.x *= AR;
 
     float gradSun = mod(elapsed * 0.001 + (d_startDay * 0.01) * tday, tday) / tday * 2.0 * PI;
     sunPos = vec2(0.9 - 0.3 * cos(gradSun),
@@ -516,32 +521,33 @@ void main()
     float staratt = 1. - min(1.0, (sunPos.y * 2.0));
     float scatatt = 1. - min(1.0, (sunPos.y * 2.2));
 
-    // рендер относительно высоты камеру - почти центр экран - отрисовываем почти одноитоже
+    // рендер относительно высоты камеры - почти центр экран - отрисовываем почти одноитоже
     //- меняя угол обзозра камеры и коофицента для микса слоёв рисунка
     //в зависимости от позици солнца сомтрим что рисовать сияние  или нерисовать сияние)
     //+ звёзды
     if (D.y < -ts)
     {
+        //отражение в воде
         float L = -O.y / D.y;
         O = O + D * L;
         D.y = -D.y;
         D = normalize(D + vec3(0, .003 * sin(iTime + 6.2831 * noise(O.xz + vec2(0., -iTime * 1e3))), 0.));
         att = .6;
-        star = stars(D);
         
-        //выключить сияние - закоментить эту строчку
+        //выключить сияние и звёзды- закоментить этот блок
+        star = stars(D);
         sunPos.y < 0.5 ? aur = smoothstep(0.0, 2.5, aurora(O, D)) : aur = aur;
     }
     else
     {
+        //выключить сияние и звёзды - закоментить этот блок 
         float L1 = O.y / D.y;
         vec3 O1 = O + D * L1;
 
         vec3 D1 = vec3(1.);
         D1 = normalize(D + vec3(1., 0.0009 * sin(iTime + 6.2831 * noise(O1.xz + vec2(0., iTime * 0.8))), 0.));
-        star = stars(D1);
 
-        //выключить сияние - закоментить эту строчку
+        star = stars(D1);
         sunPos.y < 0.5 ? aur = smoothstep(0., 1.5, aurora(O, D)) *fade : aur = aur;
     }
 
@@ -554,9 +560,11 @@ void main()
     scat *= att;
     scat *= scatatt;
 
-    // двойной блин на солнце - свет через тучи и через горизонт
+    // двойной блин на солнце - свет через тучи и через горизонт -  это тоже можно удалить и все связанные функции с ним
+    // в теории это такоеже преломление но написано както сбивчиво не похож весь код на код одного человека (найминг функции и сами функции)
     if (extend_sun == 1)
     {
+        //повторям операции преломления для второго солнца у горизонта при закате или восходе
         vec2 uv1 = vUV;
         uv1.x *= AR;
         vec3 sun2 = getAtmosphericScattering(uv1, vec2(sunPos.x, sunPos.y));
@@ -582,6 +590,7 @@ void main()
         vec3 ta = vec3(5.0, 2.0, 1.0);
 
         // build ray
+        //объёмный рендеринг
         vec3 ww = normalize(ta - ro);
         vec3 uu = normalize(cross(vec3(0.0, 1.0, 0.0), ww));
         vec3 vv = normalize(cross(ww, uu));
@@ -601,7 +610,6 @@ void main()
         col = mix(col, vec3(dot(col, vec3(0.33))), -0.5);
         // col *= 0.25 + 0.75*pow( 16.0*q.x*q.y*(1.0-q.x)*(1.0-q.y), 0.1 );
 
-        gl_FragColor = vec4(col, 1.0);
         vec3 layer_1 = vec4(pow(color, vec3(1.0 / 2.2)), 1.).xyz; // gamma correct
 
         gl_FragColor = vec4(mix(col, layer_1, 1.0 - col * fogFader), 1.0);

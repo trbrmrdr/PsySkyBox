@@ -1,11 +1,6 @@
 
 window.onload = async function () {
 
-    var verts_shader = await fetch('./src/shader.vert');
-    verts_shader = await verts_shader.text()
-
-    var frag_shader = await fetch('./src/shader.frag?1.99');//цифра для сброса кэша/куков 
-    frag_shader = await frag_shader.text()
 
     var time = 0, elapsed = 0.0;
     var timestamp = Date.now();
@@ -173,13 +168,6 @@ window.onload = async function () {
     var createScene = function () {
         var scene = new BABYLON.Scene(engine);
 
-        // new BABYLON.SceneOptimizer(scene,);
-        BABYLON.SceneOptimizer.OptimizeAsync(scene, new BABYLON.SceneOptimizerOptions(65), () => {
-            console.log("success");
-        }, () => {
-            console.log("fail");
-        })
-
         var camera = new BABYLON.ArcRotateCamera("camera1", Math.PI, Math.PI / 2.0, 20, new BABYLON.Vector3(0, 0, -1000), scene);
         camera.setTarget(BABYLON.Vector3.Zero());
         // camera.attachControl(canvas, true);
@@ -197,7 +185,9 @@ window.onload = async function () {
 
 
         //текстура шума - для случайных чисел в шейдере
-        var mainTexture = new BABYLON.Texture("/src/noise.png", scene, true, false, 12);
+        // var mainTexture = new BABYLON.Texture("/src/noise.png", scene, true, false, 12);
+        var mainTexture = new BABYLON.Texture('data:my_image_name', scene, true, false, BABYLON.Texture.LINEAR_NEAREST,
+        null, null,  noise_png, true);
 
         shaderMaterial.setTexture("iChannel0", mainTexture);
         shaderMaterial.setVector2("iResolution", new BABYLON.Vector2(window.innerWidth, window.innerHeight));
@@ -270,7 +260,7 @@ window.onload = async function () {
     this.skip = false
     var timeRender = Date.now();
     engine.runRenderLoop(function () {
-
+        
         if (!this.skip) {
             scene.render()
         }
@@ -279,9 +269,9 @@ window.onload = async function () {
         let nowTime = Date.now();
         let elpasedRender = nowTime - timeRender;
         timeRender = nowTime;
-
+        
         divFps.innerHTML = `${engine.getFps().toFixed()} fps<br>`
-            + `${engine.performanceMonitor.averageFrameTime.toFixed()} FrameTime<br>`
+        +`${engine.performanceMonitor.averageFrameTime.toFixed()} FrameTime<br>`
         //+`${elpasedRender} MyTimer`;
     });
 
